@@ -13,9 +13,7 @@ except ImportError:
     try:
         import fitz as pymupdf
     except ImportError:
-        raise ImportError(
-            "PyMuPDF kütüphanesi bulunamadı. Lütfen aktif Python ortamınızda 'pip install pymupdf' komutunu çalıştırın."
-        )
+        raise ImportError("PyMuPDF kütüphanesi bulunamadı. Lütfen aktif Python ortamınızda 'pip install pymupdf' komutunu çalıştırın.")
 
 from PIL import Image
 

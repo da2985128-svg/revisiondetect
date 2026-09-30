@@ -285,9 +285,7 @@ class RevisionDetectGUI:
 
         self.zoom_scale = new_scale
 
-        self.lbl_zoom.configure(
-            text=f"{int(self.zoom_scale * 100)}%"
-        )
+        self.lbl_zoom.configure(text=f"{int(self.zoom_scale * 100)}%")
 
         # Cache kullan
         self.show_page("old", redraw_img=True)

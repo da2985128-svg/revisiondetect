@@ -40,10 +40,7 @@ def _to_gray(image):
     OpenCV görüntüsünü grayscale yapar.
     """
     if len(image.shape) == 3:
-        return cv2.cvtColor(
-            image,
-            cv2.COLOR_BGR2GRAY
-        )
+        return cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
     return image
 
@@ -56,13 +53,7 @@ def _resize_for_compare(gray):
     karşılaştırmayı daha düşük çözünürlükte yapıyoruz.
     """
 
-    return cv2.resize(
-        gray,
-        None,
-        fx=COMPARE_SCALE,
-        fy=COMPARE_SCALE,
-        interpolation=cv2.INTER_AREA
-    )
+    return cv2.resize(gray, None, fx=COMPARE_SCALE, fy=COMPARE_SCALE, interpolation=cv2.INTER_AREA)
 
 
 def _prepare_image(gray):
@@ -75,11 +66,7 @@ def _prepare_image(gray):
     # Hafif blur:
     # PDF rasterizasyonundaki küçük çizgi kalınlığı
     # farklılıklarını azaltır.
-    small = cv2.GaussianBlur(
-        small,
-        (BLUR_SIZE, BLUR_SIZE),
-        0
-    )
+    small = cv2.GaussianBlur(small, (BLUR_SIZE, BLUR_SIZE), 0)
 
     return small
 
@@ -88,10 +75,7 @@ def _prepare_image(gray):
 # TOLERANSLI FARK HESAPLAMA
 # ============================================================
 
-def _create_difference_mask(
-    old_gray,
-    new_gray
-):
+def _create_difference_mask(old_gray, new_gray):
     """
     İki grayscale görüntü arasında toleranslı fark maskesi oluşturur.
 
@@ -110,13 +94,9 @@ def _create_difference_mask(
     # Görüntüleri küçült
     # --------------------------------------------------------
 
-    old_small = _prepare_image(
-        old_gray
-    )
+    old_small = _prepare_image(old_gray)
 
-    new_small = _prepare_image(
-        new_gray
-    )
+    new_small = _prepare_image(new_gray)
 
     # --------------------------------------------------------
     # Boyut güvenliği
@@ -124,50 +104,27 @@ def _create_difference_mask(
 
     if old_small.shape != new_small.shape:
 
-        new_small = cv2.resize(
-            new_small,
-            (
-                old_small.shape[1],
-                old_small.shape[0]
-            ),
-            interpolation=cv2.INTER_AREA
-        )
+        new_small = cv2.resize(new_small, (old_small.shape[1], old_small.shape[0]), interpolation=cv2.INTER_AREA)
 
     # --------------------------------------------------------
     # Normal pixel difference
     # --------------------------------------------------------
 
-    diff = cv2.absdiff(
-        old_small,
-        new_small
-    )
+    diff = cv2.absdiff(old_small, new_small)
 
     # --------------------------------------------------------
     # Threshold
     # --------------------------------------------------------
 
-    _, raw_diff = cv2.threshold(
-        diff,
-        DIFF_THRESHOLD,
-        255,
-        cv2.THRESH_BINARY
-    )
+    _, raw_diff = cv2.threshold(diff, DIFF_THRESHOLD, 255, cv2.THRESH_BINARY)
 
     # --------------------------------------------------------
     # Biraz temizleme
     # --------------------------------------------------------
 
-    small_kernel = cv2.getStructuringElement(
-        cv2.MORPH_ELLIPSE,
-        (3, 3)
-    )
+    small_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
 
-    raw_diff = cv2.morphologyEx(
-        raw_diff,
-        cv2.MORPH_OPEN,
-        small_kernel,
-        iterations=1
-    )
+    raw_diff = cv2.morphologyEx(raw_diff, cv2.MORPH_OPEN, small_kernel, iterations=1)
 
     # ========================================================
     # MESAFE TABANLI TOLERANS
@@ -178,40 +135,19 @@ def _create_difference_mask(
     # Teknik çizimler genellikle beyaz arka plan + siyah çizgi
     # şeklinde olduğu için threshold kullanıyoruz.
 
-    _, old_binary = cv2.threshold(
-        old_small,
-        220,
-        255,
-        cv2.THRESH_BINARY_INV
-    )
+    _, old_binary = cv2.threshold(old_small, 220, 255, cv2.THRESH_BINARY_INV)
 
-    _, new_binary = cv2.threshold(
-        new_small,
-        220,
-        255,
-        cv2.THRESH_BINARY_INV
-    )
+    _, new_binary = cv2.threshold(new_small, 220, 255, cv2.THRESH_BINARY_INV)
 
     # --------------------------------------------------------
     # Küçük gürültüleri temizle
     # --------------------------------------------------------
 
-    binary_kernel = cv2.getStructuringElement(
-        cv2.MORPH_ELLIPSE,
-        (3, 3)
-    )
+    binary_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
 
-    old_binary = cv2.morphologyEx(
-        old_binary,
-        cv2.MORPH_OPEN,
-        binary_kernel
-    )
+    old_binary = cv2.morphologyEx(old_binary, cv2.MORPH_OPEN, binary_kernel)
 
-    new_binary = cv2.morphologyEx(
-        new_binary,
-        cv2.MORPH_OPEN,
-        binary_kernel
-    )
+    new_binary = cv2.morphologyEx(new_binary, cv2.MORPH_OPEN, binary_kernel)
 
     # --------------------------------------------------------
     # Distance Transform
@@ -220,51 +156,29 @@ def _create_difference_mask(
     # old_binary'de çizgi olmayan alanların,
     # en yakın eski çizgiye uzaklığını hesaplıyoruz.
 
-    old_inverse = cv2.bitwise_not(
-        old_binary
-    )
+    old_inverse = cv2.bitwise_not(old_binary)
 
-    new_inverse = cv2.bitwise_not(
-        new_binary
-    )
+    new_inverse = cv2.bitwise_not(new_binary)
 
-    old_distance = cv2.distanceTransform(
-        old_inverse,
-        cv2.DIST_L2,
-        3
-    )
+    old_distance = cv2.distanceTransform(old_inverse, cv2.DIST_L2, 3)
 
-    new_distance = cv2.distanceTransform(
-        new_inverse,
-        cv2.DIST_L2,
-        3
-    )
+    new_distance = cv2.distanceTransform(new_inverse, cv2.DIST_L2, 3)
 
     # --------------------------------------------------------
     # Tolerans maskeleri
     # --------------------------------------------------------
 
-    old_near = (
-        old_distance <= TOLERANCE_PX
-    ).astype(np.uint8) * 255
+    old_near = (old_distance <= TOLERANCE_PX).astype(np.uint8) * 255
 
-    new_near = (
-        new_distance <= TOLERANCE_PX
-    ).astype(np.uint8) * 255
+    new_near = (new_distance <= TOLERANCE_PX).astype(np.uint8) * 255
 
     # --------------------------------------------------------
     # Eski / yeni çizgi bölgeleri
     # --------------------------------------------------------
 
-    old_near = cv2.bitwise_and(
-        old_near,
-        old_binary
-    )
+    old_near = cv2.bitwise_and(old_near, old_binary)
 
-    new_near = cv2.bitwise_and(
-        new_near,
-        new_binary
-    )
+    new_near = cv2.bitwise_and(new_near, new_binary)
 
     # --------------------------------------------------------
     # Gerçek değişiklik adayları
@@ -272,26 +186,17 @@ def _create_difference_mask(
 
     # Yeni görüntüde olup eski görüntüde karşılığı
     # olmayan alanlar.
-    new_difference = cv2.bitwise_and(
-        new_binary,
-        cv2.bitwise_not(old_near)
-    )
+    new_difference = cv2.bitwise_and(new_binary, cv2.bitwise_not(old_near))
 
     # Eski görüntüde olup yeni görüntüde karşılığı
     # olmayan alanlar.
-    old_difference = cv2.bitwise_and(
-        old_binary,
-        cv2.bitwise_not(new_near)
-    )
+    old_difference = cv2.bitwise_and(old_binary, cv2.bitwise_not(new_near))
 
     # --------------------------------------------------------
     # İki tarafı birleştir
     # --------------------------------------------------------
 
-    geometric_diff = cv2.bitwise_or(
-        new_difference,
-        old_difference
-    )
+    geometric_diff = cv2.bitwise_or(new_difference, old_difference)
 
     # ========================================================
     # NORMAL PIXEL DIFF + GEOMETRIC DIFF
@@ -303,51 +208,25 @@ def _create_difference_mask(
     #
     # Raw diff'i sadece destek olarak kullanıyoruz.
 
-    geometric_diff = cv2.bitwise_or(
-        geometric_diff,
-        raw_diff
-    )
+    geometric_diff = cv2.bitwise_or(geometric_diff, raw_diff)
 
     # --------------------------------------------------------
     # Küçük farkları temizle
     # --------------------------------------------------------
 
-    clean_kernel = cv2.getStructuringElement(
-        cv2.MORPH_ELLIPSE,
-        (3, 3)
-    )
+    clean_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
 
-    geometric_diff = cv2.morphologyEx(
-        geometric_diff,
-        cv2.MORPH_OPEN,
-        clean_kernel,
-        iterations=1
-    )
+    geometric_diff = cv2.morphologyEx(geometric_diff, cv2.MORPH_OPEN, clean_kernel, iterations=1)
 
     # --------------------------------------------------------
     # Yakın farkları birleştir
     # --------------------------------------------------------
 
-    merge_kernel = cv2.getStructuringElement(
-        cv2.MORPH_RECT,
-        (
-            MERGE_KERNEL_SIZE,
-            MERGE_KERNEL_SIZE
-        )
-    )
+    merge_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (MERGE_KERNEL_SIZE, MERGE_KERNEL_SIZE))
 
-    geometric_diff = cv2.dilate(
-        geometric_diff,
-        merge_kernel,
-        iterations=1
-    )
+    geometric_diff = cv2.dilate(geometric_diff, merge_kernel, iterations=1)
 
-    geometric_diff = cv2.morphologyEx(
-        geometric_diff,
-        cv2.MORPH_CLOSE,
-        merge_kernel,
-        iterations=1
-    )
+    geometric_diff = cv2.morphologyEx(geometric_diff, cv2.MORPH_CLOSE, merge_kernel, iterations=1)
 
     return geometric_diff
 
@@ -356,21 +235,13 @@ def _create_difference_mask(
 # COMPONENT FİLTRELEME
 # ============================================================
 
-def _find_difference_boxes(
-    mask,
-    original_width,
-    original_height
-):
+def _find_difference_boxes(mask, original_width, original_height):
     """
     Fark maskesindeki componentleri bulur ve
     orijinal PDF koordinatlarına geri çevirir.
     """
 
-    contours, _ = cv2.findContours(
-        mask,
-        cv2.RETR_EXTERNAL,
-        cv2.CHAIN_APPROX_SIMPLE
-    )
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     boxes = []
 
@@ -379,89 +250,39 @@ def _find_difference_boxes(
 
     for contour in contours:
 
-        area = cv2.contourArea(
-            contour
-        )
+        area = cv2.contourArea(contour)
 
-        if area < MIN_COMPONENT_AREA:
-            continue
+        if area < MIN_COMPONENT_AREA: continue
 
-        x, y, w, h = cv2.boundingRect(
-            contour
-        )
+        x, y, w, h = cv2.boundingRect(contour)
 
         # Orijinal koordinatlara dön.
-        x1 = int(
-            x * scale_back
-        )
+        x1 = int(x * scale_back)
 
-        y1 = int(
-            y * scale_back
-        )
+        y1 = int(y * scale_back)
 
-        x2 = int(
-            (x + w) * scale_back
-        )
+        x2 = int((x + w) * scale_back)
 
-        y2 = int(
-            (y + h) * scale_back
-        )
+        y2 = int((y + h) * scale_back)
 
         # Sayfa sınırları
-        x1 = max(
-            0,
-            min(
-                x1,
-                original_width - 1
-            )
-        )
+        x1 = max(0, min(x1, original_width - 1))
 
-        y1 = max(
-            0,
-            min(
-                y1,
-                original_height - 1
-            )
-        )
+        y1 = max(0, min(y1, original_height - 1))
 
-        x2 = max(
-            0,
-            min(
-                x2,
-                original_width
-            )
-        )
+        x2 = max(0, min(x2, original_width))
 
-        y2 = max(
-            0,
-            min(
-                y2,
-                original_height
-            )
-        )
+        y2 = max(0, min(y2, original_height))
 
-        if x2 <= x1 or y2 <= y1:
-            continue
+        if x2 <= x1 or y2 <= y1: continue
 
-        boxes.append(
-            (
-                x1,
-                y1,
-                x2,
-                y2
-            )
-        )
+        boxes.append((x1, y1, x2, y2))
 
     # --------------------------------------------------------
     # Yukarıdan aşağıya ve soldan sağa sırala
     # --------------------------------------------------------
 
-    boxes.sort(
-        key=lambda box: (
-            box[1],
-            box[0]
-        )
-    )
+    boxes.sort(key=lambda box: (box[1], box[0]))
 
     return boxes
 
@@ -470,11 +291,7 @@ def _find_difference_boxes(
 # TEK SAYFA KARŞILAŞTIRMA
 # ============================================================
 
-def compare_single_page(
-    old_page: Image.Image,
-    new_page: Image.Image,
-    min_area: int = None
-):
+def compare_single_page(old_page: Image.Image, new_page: Image.Image, min_area: int = None):
     """
     Sadece iki sayfayı karşılaştırır.
 
@@ -496,13 +313,9 @@ def compare_single_page(
     # PIL -> NumPy
     # --------------------------------------------------------
 
-    old_np = np.array(
-        old_page
-    )
+    old_np = np.array(old_page)
 
-    new_np = np.array(
-        new_page
-    )
+    new_np = np.array(new_page)
 
     # --------------------------------------------------------
     # RGB -> BGR
@@ -510,10 +323,7 @@ def compare_single_page(
 
     if len(old_np.shape) == 3:
 
-        old_img = cv2.cvtColor(
-            old_np,
-            cv2.COLOR_RGB2BGR
-        )
+        old_img = cv2.cvtColor(old_np, cv2.COLOR_RGB2BGR)
 
     else:
 
@@ -521,10 +331,7 @@ def compare_single_page(
 
     if len(new_np.shape) == 3:
 
-        new_img = cv2.cvtColor(
-            new_np,
-            cv2.COLOR_RGB2BGR
-        )
+        new_img = cv2.cvtColor(new_np, cv2.COLOR_RGB2BGR)
 
     else:
 
@@ -538,47 +345,25 @@ def compare_single_page(
 
     new_h, new_w = new_img.shape[:2]
 
-    if (
-        old_w != new_w
-        or old_h != new_h
-    ):
+    if (old_w != new_w or old_h != new_h):
 
-        print(
-            "[COMPARE] "
-            f"Boyut farklı: "
-            f"Eski={old_w}x{old_h}, "
-            f"Yeni={new_w}x{new_h}"
-        )
+        print(f"[COMPARE] Boyut farklı: Eski={old_w}x{old_h}, Yeni={new_w}x{new_h}")
 
-        new_img = cv2.resize(
-            new_img,
-            (
-                old_w,
-                old_h
-            ),
-            interpolation=cv2.INTER_AREA
-        )
+        new_img = cv2.resize(new_img, (old_w, old_h), interpolation=cv2.INTER_AREA)
 
     # --------------------------------------------------------
     # Grayscale
     # --------------------------------------------------------
 
-    old_gray = _to_gray(
-        old_img
-    )
+    old_gray = _to_gray(old_img)
 
-    new_gray = _to_gray(
-        new_img
-    )
+    new_gray = _to_gray(new_img)
 
     # --------------------------------------------------------
     # DIFFERENCE
     # --------------------------------------------------------
 
-    mask = _create_difference_mask(
-        old_gray,
-        new_gray
-    )
+    mask = _create_difference_mask(old_gray, new_gray)
 
     # --------------------------------------------------------
     # Component alan filtresi
@@ -589,14 +374,7 @@ def compare_single_page(
         # Kullanıcı dışarıdan farklı bir alan
         # vermişse küçültülmüş görüntü için
         # yaklaşık karşılığını kullan.
-        effective_area = max(
-            1,
-            int(
-                min_area *
-                COMPARE_SCALE *
-                COMPARE_SCALE
-            )
-        )
+        effective_area = max(1, int(min_area * COMPARE_SCALE * COMPARE_SCALE))
 
         global MIN_COMPONENT_AREA
 
@@ -606,11 +384,7 @@ def compare_single_page(
 
         try:
 
-            boxes = _find_difference_boxes(
-                mask,
-                old_w,
-                old_h
-            )
+            boxes = _find_difference_boxes(mask, old_w, old_h)
 
         finally:
 
@@ -618,20 +392,13 @@ def compare_single_page(
 
     else:
 
-        boxes = _find_difference_boxes(
-            mask,
-            old_w,
-            old_h
-        )
+        boxes = _find_difference_boxes(mask, old_w, old_h)
 
     # --------------------------------------------------------
     # Log
     # --------------------------------------------------------
 
-    print(
-        "[COMPARE] "
-        f"{len(boxes)} fark bölgesi bulundu."
-    )
+    print(f"[COMPARE] {len(boxes)} fark bölgesi bulundu.")
 
     return boxes
 
@@ -640,11 +407,7 @@ def compare_single_page(
 # ESKİ API
 # ============================================================
 
-def compare_pdf_pages(
-    old_pages: list,
-    new_pages: list,
-    min_area: int = 150
-):
+def compare_pdf_pages(old_pages: list, new_pages: list, min_area: int = 150):
     """
     Eski API.
 
@@ -662,28 +425,14 @@ def compare_pdf_pages(
 
     detections = {}
 
-    total_pages = min(
-        len(old_pages),
-        len(new_pages)
-    )
+    total_pages = min(len(old_pages), len(new_pages))
 
-    for idx in range(
-        total_pages
-    ):
+    for idx in range(total_pages):
 
-        print(
-            f"[COMPARE] "
-            f"Sayfa {idx + 1}/{total_pages}"
-        )
+        print(f"[COMPARE] Sayfa {idx + 1}/{total_pages}")
 
-        boxes = compare_single_page(
-            old_pages[idx],
-            new_pages[idx],
-            min_area=min_area
-        )
+        boxes = compare_single_page(old_pages[idx], new_pages[idx], min_area=min_area)
 
-        detections[
-            (idx, idx)
-        ] = boxes
+        detections[(idx, idx)] = boxes
 
     return detections
