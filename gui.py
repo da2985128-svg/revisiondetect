@@ -1,4 +1,5 @@
 # gui.py - Performans ve Tema Düzeltmeli Versiyon
+from customtkinter.windows.widgets import ctk_slider
 import customtkinter as ctk
 from tkinter import filedialog, messagebox, Canvas
 from PIL import Image, ImageTk, ImageDraw
@@ -77,6 +78,10 @@ class RevisionDetectGUI:
 
         self.old_pages: list[Image.Image] = []
         self.new_pages: list[Image.Image] = []
+
+        self.old_preview_pages = []
+        self.new_preview_pages = []
+
         self.old_page_idx = 0
         self.new_page_idx = 0
 
@@ -272,12 +277,21 @@ class RevisionDetectGUI:
     #  ZOOM & PAN İŞLEMLERİ (ULTRA HIZLI VE AKICI)
     # ================================================================== #
     def _apply_zoom(self, factor: float):
+
         new_scale = self.zoom_scale * factor
-        if 0.4 <= new_scale <= 6.0:
-            self.zoom_scale = new_scale
-            self.lbl_zoom.configure(text=f"{int(self.zoom_scale * 100)}%")
-            self.show_page("old")
-            self.show_page("new")
+
+        if not 0.4 <= new_scale <= 4.0:
+            return
+
+        self.zoom_scale = new_scale
+
+        self.lbl_zoom.configure(
+            text=f"{int(self.zoom_scale * 100)}%"
+        )
+
+        # Cache kullan
+        self.show_page("old", redraw_img=True)
+        self.show_page("new", redraw_img=True)
 
     def _reset_zoom(self):
         self.zoom_scale = 1.0
@@ -314,10 +328,15 @@ class RevisionDetectGUI:
     def show_page(self, side: str, redraw_img: bool = True):
         C = _colors()
         if side == "old":
-            pages, idx, canvas = self.old_pages, self.old_page_idx, self.canvas_old
+            pages = self.old_preview_pages
+            idx = self.old_page_idx
+            canvas = self.canvas_old
             box_color = C["box_old"]
+
         else:
-            pages, idx, canvas = self.new_pages, self.new_page_idx, self.canvas_new
+            pages = self.new_preview_pages
+            idx = self.new_page_idx
+            canvas = self.canvas_new
             box_color = C["box_new"]
 
         canvas.delete("all")
@@ -365,12 +384,55 @@ class RevisionDetectGUI:
             sx = target_w / orig.width
             sy = target_h / orig.height
 
-            for box in self.detections[key]:
+            for number, box in enumerate(self.detections[key], start=1):
+
                 x1, y1, x2, y2 = box
+
+                # Canvas koordinatları
+                bx1 = ox + x1 * sx
+                by1 = oy + y1 * sy
+                bx2 = ox + x2 * sx
+                by2 = oy + y2 * sy
+
+                # --------------------------------------------------
+                # KUTU
+                # --------------------------------------------------
+
                 canvas.create_rectangle(
-                    ox + x1 * sx, oy + y1 * sy,
-                    ox + x2 * sx, oy + y2 * sy,
-                    outline=box_color, width=2, dash=(6, 3),
+                    bx1,
+                    by1,
+                    bx2,
+                    by2,
+                    outline=box_color,
+                    width=3,
+                    dash=(6, 3)
+                )
+
+                # --------------------------------------------------
+                # NUMARA ARKAPLANI
+                # --------------------------------------------------
+
+                label_size = 20
+
+                canvas.create_rectangle(
+                    bx1,
+                    by1,
+                    bx1 + label_size,
+                    by1 + label_size,
+                    fill=box_color,
+                    outline=box_color
+                )
+
+                # --------------------------------------------------
+                # NUMARA
+                # --------------------------------------------------
+
+                canvas.create_text(
+                    bx1 + label_size / 2,
+                    by1 + label_size / 2,
+                    text=str(number),
+                    fill="white",
+                    font=("Segoe UI", 10, "bold")
                 )
 
         self._update_nav_state(side)
@@ -527,15 +589,49 @@ class RevisionDetectGUI:
         threading.Thread(target=_worker, daemon=True).start()
 
     def _on_pdf_loaded(self, side: str, pages: list[Image.Image]):
+
         self._cached_render.clear()
+
+        preview_pages = []
+
+        for img in pages:
+
+            preview = img.copy()
+
+            max_width = 1800
+
+            if preview.width > max_width:
+
+                scale = max_width / preview.width
+
+                new_size = (
+                    int(preview.width * scale),
+                    int(preview.height * scale)
+                )
+
+                preview = preview.resize(
+                    new_size,
+                    Image.Resampling.LANCZOS
+                )
+
+            preview_pages.append(preview)
+
         if side == "old":
+
             self.old_pages = pages
+            self.old_preview_pages = preview_pages
             self.old_page_idx = 0
+
             self.show_page("old")
+
         else:
+
             self.new_pages = pages
+            self.new_preview_pages = preview_pages
             self.new_page_idx = 0
+
             self.show_page("new")
+
         self._update_status()
 
     def _on_pdf_load_error(self, side: str, error_msg: str):
@@ -545,21 +641,77 @@ class RevisionDetectGUI:
         old = self.old_pdf_path.get().strip()
         new = self.new_pdf_path.get().strip()
 
-        if not old or not new or not self.old_pages or not self.new_pages:
-            messagebox.showwarning("Uyarı", "Lütfen her iki PDF dosyasının da yüklendiğinden emin olun.")
+        if not old or not new:
+            messagebox.showwarning(
+                "Uyarı",
+                "Lütfen iki PDF dosyasını da yükleyin."
+            )
             return
 
-        self.status_label.configure(text="⏳ Karşılaştırma yapılıyor, lütfen bekleyin...")
+        if not self.old_pages or not self.new_pages:
+            messagebox.showwarning(
+                "Uyarı",
+                "PDF sayfaları henüz yüklenmedi."
+            )
+            return
+
+        old_idx = self.old_page_idx
+        new_idx = self.new_page_idx
+
+        print(
+            f"[COMPARE] "
+            f"Eski sayfa: {old_idx + 1} | "
+            f"Yeni sayfa: {new_idx + 1}"
+        )
+
+        self.status_label.configure(
+            text=(
+                f"⏳ "
+                f"Eski {old_idx + 1}. sayfa ↔ "
+                f"Yeni {new_idx + 1}. sayfa karşılaştırılıyor..."
+            )
+        )
+
         self.diff_badge.configure(text="")
 
         def _worker():
-            try:
-                detections = compare_pdf_pages(self.old_pages, self.new_pages)
-                self._queue.put((self.set_detections, (detections,)))
-            except Exception as e:
-                self._queue.put((messagebox.showerror, ("Hata", f"Karşılaştırma hatası:\n{e}")))
 
-        threading.Thread(target=_worker, daemon=True).start()
+            try:
+
+                from diff_engine import compare_single_page
+
+                boxes = compare_single_page(
+                    self.old_pages[old_idx],
+                    self.new_pages[new_idx]
+                )
+
+                detections = {
+                    (old_idx, new_idx): boxes
+                }
+
+                self._queue.put(
+                    (
+                        self.set_detections,
+                        (detections,)
+                    )
+                )
+
+            except Exception as e:
+
+                self._queue.put(
+                    (
+                        messagebox.showerror,
+                        (
+                            "Hata",
+                            f"Karşılaştırma hatası:\n{e}"
+                        )
+                    )
+                )
+
+        threading.Thread(
+            target=_worker,
+            daemon=True
+        ).start()
 
     def _on_clear(self):
         self.old_pdf_path.set("")
